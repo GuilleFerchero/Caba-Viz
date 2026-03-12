@@ -330,7 +330,7 @@ p <- leaflet(mapa_indice) %>%
 
 library(htmlwidgets)
 mi_mapa <- p # Asigna el código anterior a una variable
-saveWidget(mi_mapa, file = "mapa_envejecimiento_caba.html")
+saveWidget(mi_mapa, file = "index.html", selfcontained = TRUE)
 
 
 
