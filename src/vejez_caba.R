@@ -279,12 +279,44 @@ ggsave("output/mapa_frac.png",mapa_frac)
 
 ######################
 #Version Leaflet
-# 1. Definir la Paleta de Colores
-# Usamos 'magma' igual que antes, pero adaptada a Leaflet
+
+# Versión Leaflet con Barrios y Comunas
+
+url_comunas <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/comunas/comunas.csv"
+mapa_caba <- st_read(url_comunas)
+
+##########
+mapa_indice <- st_transform(mapa_indice, crs = 4326)
+
+# 2. Preparar tus datos de indicadores de Comunas
+df_mapa_data <- df_indicadores %>%
+  mutate(COMUNAS = readr::parse_number(COMUNA))
+
+# 3. Preparar el mapa de Comunas (mapa_caba)
+# AQUÍ ESTÁ LA MAGIA: Convertimos la tabla a mapa (st_as_sf) ANTES de cruzar
+mapa_caba_sf <- mapa_caba %>%
+  mutate(COMUNAS = as.numeric(comuna)) %>%
+  st_as_sf(wkt = "geometry", crs = 4326) # Forzamos a que sea un mapa y le damos el mismo CRS
+
+# (Paso opcional que tenías) Si necesitas el mapa de comunas con sus indicadores unidos:
+mapa_final <- mapa_caba_sf %>%
+  left_join(df_mapa_data, by = "COMUNAS")
+
+# 4. LA UNIÓN ESPACIAL (Spatial Join)
+# Ahora sí: cruzamos Fracciones (mapa_indice) con Comunas (mapa_caba_sf)
+# Como ambos son objetos 'sf' y tienen crs=4326, st_intersects funcionará impecable.
+mapa_leaflet_final <- st_join(
+  mapa_indice,
+  mapa_caba_sf %>% select(comuna, barrios), # Traemos solo las columnas que nos interesan
+  join = st_intersects
+)
+#########
+
+# 3. Definir la Paleta de Colores
 paleta <- colorNumeric(
   palette = "magma",
-  domain = mapa_indice$indice_envejecimiento,
-  reverse = TRUE # Invertimos para que oscuro = más envejecido (igual que ggplot)
+  domain = mapa_leaflet_final$indice_envejecimiento,
+  reverse = TRUE
 )
 
 # 2. Crear el contenido del Popup (HTML básico)
@@ -296,26 +328,36 @@ mapa_indice$popup_info <- paste0(
   "👶 <b>Jóvenes (0-14):</b> ", mapa_indice$jovenes_0_14
 )
 
-# 3. Generar el Mapa
-p <- leaflet(mapa_indice) %>%
-  addProviderTiles(providers$CartoDB.Positron) %>% # Fondo minimalista gris
+# 4. Crear el contenido del Popup con los nuevos datos
+mapa_leaflet_final$popup_info <- paste0(
+  "<div style='font-family: Arial, sans-serif; font-size: 12px;'>",
+  "<strong style='color: #2c3e50;'>Comuna: </strong>", mapa_leaflet_final$comuna, "<br>",
+  "<strong>Barrios: </strong>", mapa_leaflet_final$barrios, "<br>",
+  "<hr style='margin: 5px 0;'>",
+  "<strong>Fracción ID: </strong>", mapa_leaflet_final$cod_indec, "<br>",
+  "<strong>Índice Envejecimiento: </strong>", round(mapa_leaflet_final$indice_envejecimiento, 1), "<br>",
+  "👴 <strong>Mayores (65+): </strong>", mapa_leaflet_final$mayores_65, "<br>",
+  "👶 <strong>Jóvenes (0-14): </strong>", mapa_leaflet_final$jovenes_0_14,
+  "</div>"
+)
+
+
+# 5. Generar el Mapa Leaflet
+p <- leaflet(mapa_leaflet_final) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
   addPolygons(
     fillColor = ~paleta(indice_envejecimiento),
     fillOpacity = 0.7,
-    color = "white",       # Color del borde
-    weight = 1,            # Grosor del borde
-
-    # Interacción: Resaltar al pasar el mouse
+    color = "white",
+    weight = 0.8,
     highlightOptions = highlightOptions(
       weight = 2,
       color = "#666",
       fillOpacity = 0.9,
       bringToFront = TRUE
     ),
-
-    # El Popup mágico
     popup = ~popup_info,
-    label = ~paste("Índice:", round(indice_envejecimiento, 1)) # Etiqueta rápida al pasar mouse
+    label = ~paste("Barrio:", barrios) # Etiqueta rápida al pasar el mouse
   ) %>%
   addLegend(
     pal = paleta,
@@ -329,8 +371,7 @@ p <- leaflet(mapa_indice) %>%
 
 
 library(htmlwidgets)
-mi_mapa <- p # Asigna el código anterior a una variable
-saveWidget(mi_mapa, file = "index.html", selfcontained = TRUE)
+saveWidget(p, file = "index.html", selfcontained = TRUE)
 
 
 
