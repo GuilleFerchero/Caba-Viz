@@ -287,24 +287,19 @@ mapa_caba <- st_read(url_comunas)
 
 ##########
 mapa_indice <- st_transform(mapa_indice, crs = 4326)
-
-# 2. Preparar tus datos de indicadores de Comunas
-df_mapa_data <- df_indicadores %>%
+#df_mapa_data <- df_indicadores %>%
   mutate(COMUNAS = readr::parse_number(COMUNA))
 
-# 3. Preparar el mapa de Comunas (mapa_caba)
-# AQUÍ ESTÁ LA MAGIA: Convertimos la tabla a mapa (st_as_sf) ANTES de cruzar
+
+
 mapa_caba_sf <- mapa_caba %>%
   mutate(COMUNAS = as.numeric(comuna)) %>%
   st_as_sf(wkt = "geometry", crs = 4326) # Forzamos a que sea un mapa y le damos el mismo CRS
 
-# (Paso opcional que tenías) Si necesitas el mapa de comunas con sus indicadores unidos:
+
 mapa_final <- mapa_caba_sf %>%
   left_join(df_mapa_data, by = "COMUNAS")
 
-# 4. LA UNIÓN ESPACIAL (Spatial Join)
-# Ahora sí: cruzamos Fracciones (mapa_indice) con Comunas (mapa_caba_sf)
-# Como ambos son objetos 'sf' y tienen crs=4326, st_intersects funcionará impecable.
 mapa_leaflet_final <- st_join(
   mapa_indice,
   mapa_caba_sf %>% select(comuna, barrios), # Traemos solo las columnas que nos interesan
@@ -371,7 +366,7 @@ p <- leaflet(mapa_leaflet_final) %>%
 
 
 library(htmlwidgets)
-saveWidget(p, file = "index.html", selfcontained = TRUE)
+saveWidget(p, file = "docs/index.html", selfcontained = TRUE)
 
 
 
