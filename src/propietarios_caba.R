@@ -152,7 +152,9 @@ mapa_comunas_tenencia <- df_tenencia_comuna %>%
 
 pal_comuna <- colorNumeric("YlOrRd", domain = mapa_comunas_tenencia$porc_inquilinos)
 pal_fraccion <- colorNumeric("YlOrRd", domain = mapa_inquilinos$porc_inquilinos)
-leaflet() %>%
+
+
+p_episodio2 <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
 
   # CAPA 1: NIVEL COMUNAL
@@ -187,3 +189,7 @@ leaflet() %>%
   # LEYENDA
   addLegend(pal = pal_fraccion, values = mapa_inquilinos$porc_inquilinos,
             title = "% Inquilinos", position = "bottomright")
+
+
+
+htmlwidgets::saveWidget(p_episodio2, file = "docs/episodio_2.html", selfcontained = TRUE)
