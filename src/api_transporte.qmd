@@ -1,0 +1,76 @@
+---
+title: "Monitoreo de Colectivos en Tiempo Real - #NarrandoCaba"
+format: html
+editor: visual
+---
+
+## 1. Descarga y Decodificación (Python)
+Usamos Python para conectarnos a la API de CABA y procesar el Protocol Buffer de GTFS-RT de forma nativa.
+
+
+```{python}
+import os
+import subprocess
+import urllib.parse
+from google.transit import gtfs_realtime_pb2
+
+# 1. Recuperar credenciales del entorno de forma segura
+client_id = os.environ.get("CABA_API_CLIENT_ID")
+client_secret = os.environ.get("CABA_API_CLIENT_SECRET")
+
+colectivos_lista = []
+archivo_temporal = "temp_buses.pb"
+
+if not client_id or not client_secret:
+    print("Error: No se encontraron las credenciales CABA_API_CLIENT_ID o CABA_API_CLIENT_SECRET.")
+else:
+    # 2. Codificar los parámetros de forma segura (escapa caracteres especiales)
+    params = {
+        "client_id": client_id,
+        "client_secret": client_secret
+    }
+    url_params = urllib.parse.urlencode(params)
+    url_completa = f"https://apitransporte.buenosaires.gob.ar/colectivos/vehiclePositions?{url_params}"
+
+    print("Descargando datos en tiempo real de CABA vía curl unificado...")
+    
+    # 3. Ejecutar curl pasando la URL limpia entre comillas dobles
+    comando = f'curl -s -L -H "Accept: application/x-protobuf" "{url_completa}" -o {archivo_temporal}'
+    resultado = subprocess.run(comando, shell=True)
+
+    # 4. Validar la descarga y procesar
+    if resultado.returncode == 0 and os.path.exists(archivo_temporal) and os.path.getsize(archivo_temporal) > 0:
+        try:
+            with open(archivo_temporal, "rb") as f:
+                raw_data = f.read()
+                
+            feed = gtfs_realtime_pb2.FeedMessage()
+            feed.ParseFromString(raw_data)
+            print(f"¡Éxito total! Se descargaron {len(feed.entity)} posiciones de colectivos.")
+            
+            for entity in feed.entity:
+                if entity.HasField('vehicle'):
+                    v = entity.vehicle
+                    colectivos_lista.append({
+                        "id": entity.id,
+                        "route_id": v.trip.route_id if v.trip.route_id else "",
+                        "latitude": v.position.latitude,
+                        "longitude": v.position.longitude,
+                        "speed": v.position.speed if v.position.speed else 0.0,
+                        "timestamp": v.timestamp
+                    })
+                    
+            # Limpieza del archivo temporal
+            os.remove(archivo_temporal)
+            
+        except Exception as e:
+            print(f"Error al decodificar los bytes del Protocol Buffer: {e}")
+            if os.path.exists(archivo_temporal):
+                os.remove(archivo_temporal)
+    else:
+        print("Error: El comando curl falló o el servidor devolvió un archivo vacío.")
+    
+```
+
+
+
